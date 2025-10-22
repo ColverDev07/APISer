@@ -1,0 +1,33 @@
+# Archivo de variables de entorno (¡MUY IMPORTANTE!)
+.env
+
+# Directorio del entorno virtual de Python
+.venv/
+venv/
+*/venv/
+*/.venv/
+
+# Caché de Python y archivos compilados
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Archivo de caché de tokens de Spotify
+.spotify_cache
+
+# Archivos específicos del sistema operativo
+.DS_Store
+Thumbs.db
+
+# Archivos de configuración de IDEs (opcional)
+.idea/
+.vscode/
+
+# Registros (logs) si los generas en archivos
+*.log
+logs/
+
+# Archivos de bases de datos locales (si usaras SQLite, etc.)
+*.db
+*.sqlite3
