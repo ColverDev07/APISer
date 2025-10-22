@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mi Película Mental - Proyecto de Vida</title>
+
+    <!-- Variable de Flask para que JS sepa si estamos logueados -->
+    <script>
+        // Pasa el estado de login de Flask a JavaScript
+        window.isSpotifyLoggedIn = {{ is_spotify_logged_in | tojson | safe }};
+    </script>
+
+    <!-- CSS INTEGRADO DIRECTAMENTE -->
+    <style>
+        /* ==========================================
+           VARIABLES Y ESTILOS GLOBALES
+           ========================================== */
+        :root {
+            --primary-color: #8B5CF6;   /* Violeta principal */
+            --secondary-color: #374151; /* Gris oscuro para hovers */
+            --bg-dark: #0a0a0a;         /* Negro casi puro para el fondo */
+            --bg-card: rgba(28, 28, 28, 0.75); /* Gris muy oscuro semitransparente */
+            --text-light: #f0f0f0;      /* Blanco roto */
+            --text-muted: #a1a1aa;      /* Gris claro para texto secundario */
+            --accent: #A78BFA;          /* Violeta más claro para gradientes */
+            --shadow: rgba(0, 0, 0, 0.5); /* Sombra más sutil */
+            --border-color: #333333;   /* Gris para bordes */
+            --error-color: #F47174;    /* Rojo sutil para errores */
+            --spotify-green: #1DB954;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Montserrat', 'Segoe UI', sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-light);
+            min-height: 100vh;
+            line-height: 1.6;
+            background-image: linear-gradient(180deg, rgba(10, 10, 10, 0.8) 0%, var(--bg-dark) 100%),
+                              radial-gradient(ellipse at top, rgba(139, 92, 246, 0.1), transparent 70%),
+                              radial-gradient(ellipse at bottom, rgba(167, 139, 250, 0.1), transparent 70%);
+            background-attachment: fixed;
+            padding-bottom: 100px; /* Espacio para el reproductor fijo */
+        }
+
+        /* ==========================================
+           ESTILOS GENERALES Y BOTONES
+           ========================================== */
+        .container { max-width: 900px; margin: 0 auto; padding: 20px; position: relative; z-index: 1; }
+        .hidden { display: none !important; }
+        .btn-primary, .btn-secondary, .btn-tertiary {
+            padding: 12px 28px; font-size: 1rem; font-weight: 600;
+            border-radius: 50px; border: none; cursor: pointer;
+            transition: all 0.3s ease; display: inline-block; text-align: center;
+        }
+        .btn-primary {
+            background-image: linear-gradient(to right, var(--primary-color), var(--accent));
+            color: white; box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3);
+        }
+        .btn-primary:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(139, 92, 246, 0.4); }
+        .btn-secondary { background: var(--secondary-color); color: var(--text-light); border: 1px solid var(--border-color); }
+        .btn-secondary:hover:not(:disabled) { background: #4b5563; transform: translateY(-2px); }
+        .btn-tertiary { background: transparent; color: var(--text-muted); font-size: 0.9rem; padding: 8px 16px; }
+        .btn-tertiary:hover:not(:disabled) { color: var(--text-light); background: rgba(255, 255, 255, 0.1); }
+        .btn-primary:disabled, .btn-secondary:disabled, .btn-tertiary:disabled {
+            background: var(--secondary-color); opacity: 0.6; cursor: not-allowed;
+            box-shadow: none; transform: none;
+        }
+
+        /* ==========================================
+           ESTILOS DE SECCIONES (Hero, Screens)
+           ========================================== */
+        .hero { text-align: center; padding: 60px 20px 40px; }
+        .title-cinema {
+            font-size: 3rem; font-weight: 800; letter-spacing: 4px; color: var(--primary-color);
+            text-transform: uppercase; text-shadow: 0 0 10px rgba(139, 92, 246, 0.5), 0 0 20px rgba(139, 92, 246, 0.3);
+        }
+        .subtitle { font-size: 1.2rem; color: var(--text-muted); margin-top: 10px; }
+        .screen { display: none; animation: fadeIn 0.8s ease forwards; }
+        .screen.active { display: block; }
+        .screen.hiding { animation: fadeOut 0.6s ease forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+
+        /* ==========================================
+           PANTALLA 1: SELECCIÓN DE MÚSICA (SPOTIFY)
+           ========================================== */
+        .welcome-card {
+            background: var(--bg-card); backdrop-filter: blur(10px); border: 1px solid var(--border-color);
+            border-radius: 16px; padding: 40px; text-align: center; max-width: 550px;
+            margin: 40px auto; box-shadow: 0 8px 30px var(--shadow);
+        }
+        .cinema-icon { font-size: 3rem; margin-bottom: 20px; }
+        .welcome-card h2 { font-size: 1.8rem; color: var(--text-light); margin-bottom: 15px; }
+        .welcome-card p { font-size: 1.1rem; color: var(--text-muted); margin-bottom: 30px; }
+        .welcome-card .btn-primary {
+            text-decoration: none; padding: 15px 30px; display: inline-block;
+            margin-top: 15px; margin-bottom: 15px; width: 80%; max-width: 300px;
+        }
+        .welcome-card .btn-secondary { width: 80%; max-width: 300px; }
+
+        /* ==========================================
+           PANTALLA 2: CUESTIONARIO
+           ========================================== */
+        .questionnaire-card {
+            background: var(--bg-card); backdrop-filter: blur(10px); border: 1px solid var(--border-color);
+            border-radius: 16px; overflow: hidden; box-shadow: 0 8px 30px var(--shadow);
+            max-width: 700px; margin: 40px auto;
+        }
+        /* --- CAMBIOS AQUÍ --- */
+        .question-header {
+             /* Ya no necesita position: relative si todo va debajo */
+             text-align: center; /* Centrar imagen */
+        }
+        .question-image {
+            width: 100%;
+            height: 250px;
+            object-fit: cover;
+            /* Se quita opacidad para que se vea bien */
+            opacity: 1; /* << CAMBIO */
+            transition: opacity 0.5s ease;
+            display: block; /* Asegura que no tenga espacio extra abajo */
+        }
+        /* Contenedor para el texto debajo de la imagen */
+        .question-text-content {
+            padding: 20px 30px 10px; /* Padding ajustado */
+            text-align: left; /* Alinear texto a la izquierda */
+        }
+        .question-category {
+            /* Se quita position: absolute */
+            background: rgba(139, 92, 246, 0.2); /* Fondo sutil */
+            color: var(--accent);
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            display: inline-block; /* Para que tome el padding */
+            margin-bottom: 10px; /* Espacio antes del título */
+        }
+        .question-title {
+            /* Se quita position: absolute y text-shadow */
+            font-size: 1.6rem; /* Ligeramente más grande */
+            color: var(--text-light);
+            margin-bottom: 0; /* Sin margen extra abajo */
+            line-height: 1.3;
+        }
+        /* --- FIN DE CAMBIOS --- */
+        .question-body { padding: 20px 30px 30px; /* Ajustar padding superior */ }
+        .answer-textarea {
+            width: 100%; padding: 15px; font-size: 1rem; font-family: inherit; color: var(--text-light);
+            background: rgba(10, 10, 10, 0.7); border: 1px solid var(--border-color);
+            border-radius: 8px; resize: vertical; min-height: 120px;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+        .answer-textarea:focus { outline: none; border-color: var(--primary-color); box-shadow: 0 0 10px rgba(139, 92, 246, 0.3); }
+        .answer-textarea.error { border-color: var(--error-color); animation: shake 0.82s cubic-bezier(.36,.07,.19,.97) both; }
+        @keyframes shake { 10%, 90% { transform: translate3d(-1px, 0, 0); } 20%, 80% { transform: translate3d(2px, 0, 0); } 30%, 50%, 70% { transform: translate3d(-4px, 0, 0); } 40%, 60% { transform: translate3d(4px, 0, 0); } }
+        .helper-text { font-size: 0.9rem; color: var(--text-muted); margin-top: 15px; text-align: center; }
+        .question-actions { display: flex; justify-content: space-between; padding: 0 30px 30px; gap: 15px; }
+        .extra-actions { text-align: center; margin-top: 20px; }
+        /* Botón de Logout */
+        #logout-btn { color: var(--text-muted); border: 1px solid var(--border-color); }
+        #logout-btn:hover { color: var(--error-color); background: rgba(244, 113, 116, 0.1); border-color: var(--error-color); }
+
+
+        /* ==========================================
+           PANTALLA 3: GENERACIÓN
+           ========================================== */
+        .generation-card {
+            background: var(--bg-card); backdrop-filter: blur(10px); border: 1px solid var(--border-color);
+            border-radius: 16px; padding: 60px 40px; text-align: center; max-width: 550px;
+            margin: 80px auto; box-shadow: 0 8px 30px var(--shadow);
+        }
+        .generation-card h2 { font-size: 1.8rem; color: var(--text-light); margin-bottom: 15px; }
+        .generation-text { font-size: 1.1rem; color: var(--text-muted); margin-bottom: 30px; }
+        .loader-cinema {
+            width: 60px; height: 60px; border: 5px solid var(--border-color);
+            border-top-color: var(--primary-color); border-radius: 50%;
+            animation: spin 1s linear infinite; margin: 30px auto;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .generation-status { font-size: 0.9rem; color: var(--text-muted); }
+        .animate-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+        /* ==========================================
+           PANTALLA 4: RESULTADOS (Carrusel y Final)
+           ========================================== */
+        .reveal-container { text-align: center; padding: 100px 0; }
+        .btn-reveal { font-size: 1.5rem; padding: 20px 40px; animation: pulse 2s infinite; }
+        .carousel-container {
+            width: 100%; max-width: 700px; margin: 40px auto;
+            position: relative; overflow: hidden; border-radius: 16px;
+        }
+        .carousel-slides { display: flex; transition: transform 0.6s cubic-bezier(0.68, -0.55, 0.27, 1.55); box-shadow: inset 0 0 100px rgba(0,0,0,0.4); }
+        .carousel-slide { min-width: 100%; position: relative; opacity: 0; transition: opacity 0.8s ease; }
+        .carousel-slide.active-slide { opacity: 1; }
+        .scene-card { width: 100%; position: relative; }
+        .scene-image { width: 100%; height: 450px; object-fit: cover; display: block; border-radius: 16px; }
+        .scene-card p {
+            position: absolute; bottom: 0; left: 0; right: 0;
+            background: linear-gradient(to top, rgba(0,0,0,0.9), transparent);
+            color: var(--text-light); padding: 40px 20px 20px; text-align: center;
+            font-size: 1.1rem; font-style: italic; border-bottom-left-radius: 16px; border-bottom-right-radius: 16px;
+        }
+        .carousel-btn {
+            position: absolute; top: 50%; transform: translateY(-50%); background: rgba(0, 0, 0, 0.5);
+            color: white; border: none; border-radius: 50%; width: 45px; height: 45px;
+            font-size: 1.2rem; cursor: pointer; transition: background 0.3s ease; z-index: 10;
+        }
+        .carousel-btn:hover { background: rgba(0, 0, 0, 0.8); }
+        .carousel-btn.prev { left: 15px; }
+        .carousel-btn.next { right: 15px; }
+
+        .final-layout {
+            display: flex; flex-wrap: wrap; gap: 30px; margin-top: 40px;
+            background: var(--bg-card); backdrop-filter: blur(10px); border: 1px solid var(--border-color);
+            border-radius: 16px; padding: 30px; box-shadow: 0 8px 30px var(--shadow);
+        }
+        .timeline-container { flex: 2; min-width: 300px; }
+        .timeline-container h2 {
+            font-size: 1.5rem; color: var(--accent); border-bottom: 2px solid var(--primary-color);
+            padding-bottom: 10px; margin-bottom: 20px;
+        }
+        .timeline-item { margin-bottom: 25px; position: relative; padding-left: 25px; border-left: 2px solid var(--border-color); }
+        .timeline-item::before {
+            content: ''; position: absolute; left: -7px; top: 5px; width: 12px; height: 12px;
+            border-radius: 50%; background: var(--primary-color); box-shadow: 0 0 10px rgba(139, 92, 246, 0.5);
+        }
+        .timeline-item strong { display: block; font-size: 1rem; color: var(--text-light); margin-bottom: 5px; }
+        .timeline-item span { color: var(--text-muted); font-size: 0.95rem; }
+        .final-actions {
+            flex: 1; min-width: 250px; display: flex; flex-direction: column;
+            justify-content: center; align-items: center; gap: 25px;
+        }
+        .motivational-phrase {
+            text-align: center; font-size: 1.4rem; color: var(--primary-color);
+            padding: 20px; border: 1px dashed var(--primary-color); border-radius: 10px;
+            font-style: italic; background: rgba(28, 26, 62, 0.5);
+            animation: fadeIn 0.8s ease 0.5s forwards; opacity: 0;
+        }
+        .action-buttons {
+            display: flex; flex-direction: column; gap: 15px; width: 100%; max-width: 300px;
+            animation: fadeIn 0.8s ease 0.7s forwards; opacity: 0;
+        }
+        .action-buttons .btn-primary, .action-buttons .btn-secondary { width: 100%; }
+
+        /* Pie de Página */
+        .app-footer {
+            text-align: center; margin-top: 50px; padding: 20px;
+            color: var(--text-muted); font-size: 0.9rem;
+            border-top: 1px solid var(--border-color);
+        }
+
+        /* ==========================================
+           BARRA DE PROGRESO
+           ========================================== */
+        .progress-container { margin: 30px auto 0; max-width: 700px; }
+        .progress-bar { width: 100%; height: 8px; background-color: var(--border-color); border-radius: 4px; overflow: hidden; }
+        .progress-fill {
+            width: 0%; height: 100%; background-image: linear-gradient(to right, var(--primary-color), var(--accent));
+            border-radius: 4px; transition: width 0.5s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+        }
+        .progress-text { text-align: center; margin-top: 10px; font-size: 0.9rem; color: var(--text-muted); }
+
+        /* ==========================================
+           REPRODUCTOR SPOTIFY (CON BUSCADOR INTEGRADO)
+           ========================================== */
+        #spotify-web-player {
+            position: fixed;
+            bottom: 15px;
+            left: 15px; /* Mueve a la izquierda */
+            width: 90%; /* Más ancho en móviles */
+            max-width: 450px; /* Ancho máximo en escritorio */
+            background-color: #1c1c1c; /* Ligeramente más claro */
+            border-radius: 12px; /* Más redondeado */
+            padding: 12px;
+            display: none; /* Se activa con JS si el login es exitoso */
+            flex-direction: column;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.6);
+            z-index: 1000;
+            color: white;
+            font-family: 'Montserrat', 'Segoe UI', sans-serif;
+            transition: all 0.3s ease; /* Transición suave para expandir */
+            border: 1px solid #333; /* Borde sutil */
+            overflow: hidden; /* Evita que los resultados se salgan al colapsar */
+            max-height: 80px; /* Altura inicial (solo UI principal) */
+        }
+        /* Clase para cuando el reproductor está expandido */
+        #spotify-web-player.spotify-player-expanded {
+             max-height: 350px; /* Altura máxima al expandir */
+        }
+
+        .spotify-player-main-ui {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            min-height: 54px; /* Altura mínima de la UI principal */
+        }
+
+        #spotify-player-info {
+            display: flex;
+            align-items: center;
+            gap: 12px; /* Más espacio */
+            overflow: hidden;
+            flex-grow: 1; /* Permite que crezca */
+            min-width: 0; /* Para que text-overflow funcione */
+        }
+        #spotify-player-info div { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+        #spotify-album-art { width: 50px; height: 50px; border-radius: 6px; flex-shrink: 0; object-fit: cover; }
+        #spotify-track-name { font-size: 1rem; font-weight: 600; /* Más grueso */ }
+        #spotify-artist-name { font-size: 0.85rem; color: #b3b3b3; }
+
+        #spotify-player-controls { display: flex; align-items: center; flex-shrink: 0; margin-left: 10px; }
+        #spotify-player-controls button {
+            background: none; border: none; color: #b3b3b3; /* Gris claro */
+            font-size: 1.2rem; /* Iconos más grandes */
+            cursor: pointer; margin: 0 4px; padding: 6px;
+            transition: color 0.2s ease;
+        }
+        #spotify-player-controls button:hover:not(:disabled) { color: white; }
+        #spotify-player-controls button:disabled { color: #555; cursor: not-allowed; }
+        /* Botón play/pausa más grande y siempre blanco */
+        #spotify-player-controls button#spotify-play-btn,
+        #spotify-player-controls button#spotify-pause-btn {
+             font-size: 1.5rem;
+             color: white;
+        }
+        #spotify-player-controls button#spotify-play-btn:hover:not(:disabled),
+        #spotify-player-controls button#spotify-pause-btn:hover:not(:disabled) {
+             transform: scale(1.1); /* Efecto hover */
+        }
+
+
+        /* Botón de expandir/buscar */
+        #spotify-expand-btn {
+            background: none; border: none; color: #b3b3b3;
+            font-size: 1.1rem; cursor: pointer; padding: 8px; margin-left: 5px;
+            transition: color 0.2s ease, transform 0.3s ease; /* Añadir transición de rotación */
+        }
+        #spotify-expand-btn:hover { color: white; }
+        /* Rotar icono cuando está expandido */
+        #spotify-web-player.spotify-player-expanded #spotify-expand-btn {
+             transform: rotate(45deg); /* Cambia a una 'X' rotada */
+             color: white;
+        }
+
+
+        /* --- Sección de Búsqueda (Oculta por defecto) --- */
+        #spotify-search-expansion {
+            margin-top: 15px; /* Más espacio */
+            border-top: 1px solid #444;
+            padding-top: 15px;
+            width: 100%;
+        }
+
+        #spotify-player-search-input {
+            width: 100%;
+            padding: 10px 15px; /* Más padding */
+            border-radius: 50px; /* Totalmente redondeado */
+            border: 1px solid var(--border-color);
+            background: #3f3f3f; /* Ligeramente más claro */
+            color: white;
+            font-size: 0.95rem;
+            margin-bottom: 10px; /* Espacio antes de resultados */
+        }
+        #spotify-player-search-input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 8px rgba(139, 92, 246, 0.4); /* Sombra al enfocar */
+        }
+
+        #spotify-player-search-results {
+            max-height: 180px; /* Más altura para resultados */
+            overflow-y: auto;
+            /* Estilos para la barra de scroll (opcional, mejora estética) */
+            scrollbar-width: thin;
+            scrollbar-color: #555 #333;
+        }
+        #spotify-player-search-results::-webkit-scrollbar { width: 8px; }
+        #spotify-player-search-results::-webkit-scrollbar-track { background: #333; border-radius: 4px; }
+        #spotify-player-search-results::-webkit-scrollbar-thumb { background-color: #555; border-radius: 4px; border: 2px solid #333; }
+
+
+        /* -- Estilos para los items de resultado -- */
+        .search-result-item {
+            display: flex;
+            align-items: center;
+            gap: 12px; /* Más espacio */
+            padding: 10px; /* Más padding */
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+        .search-result-item:hover { background: #3a3a3a; }
+        .search-result-item img { width: 45px; height: 45px; border-radius: 4px; object-fit: cover; }
+        .search-result-info { min-width: 0; } /* Para que text-overflow funcione */
+        .search-result-info strong { display: block; color: white; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .search-result-info span { color: #b3b3b3; font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        /* Mensajes dentro de resultados */
+        #spotify-player-search-results p {
+            padding: 15px;
+            text-align: center;
+            color: var(--text-muted);
+        }
+
+        /* Responsividad para el reproductor */
+        @media (max-width: 600px) {
+            #spotify-web-player {
+                 width: calc(100% - 20px); /* Ajuste de ancho y margen */
+                 left: 10px;
+                 /* right: 10px; */ /* Si lo quieres a la derecha en móvil */
+                 transform: none; /* Sin translación */
+                 bottom: 10px;
+                 max-width: none;
+            }
+             #spotify-player-info { max-width: calc(100% - 160px); gap: 8px; } /* Ajustar max-width dinámico */
+             #spotify-album-art { width: 40px; height: 40px; }
+             #spotify-track-name { font-size: 0.85rem; }
+             #spotify-artist-name { font-size: 0.75rem; }
+             #spotify-player-controls button { font-size: 1rem; margin: 0 1px; padding: 4px;} /* Menos margen/padding */
+             #spotify-player-controls button#spotify-play-btn,
+             #spotify-player-controls button#spotify-pause-btn { font-size: 1.3rem; }
+             #spotify-expand-btn { padding: 6px; margin-left: 2px; }
+        }
+
+        /* Estilo para cuando el player está expandido (no necesita mucho) */
+        #spotify-web-player.spotify-player-expanded {
+            /* max-height ya lo controla */
+        }
+
+        /* ==========================================
+           RESPONSIVIDAD GENERAL
+           ========================================== */
+        @media (max-width: 768px) {
+            .container { padding: 10px; }
+            .hero { padding: 40px 10px 20px; }
+            .title-cinema { font-size: 2rem; letter-spacing: 2px; }
+            .subtitle { font-size: 1rem; }
+            .welcome-card, .questionnaire-card, .generation-card, .final-layout { padding: 20px; margin: 20px auto; }
+            /* Ajuste responsivo para el título de la pregunta */
+            .question-title { font-size: 1.3rem; } /* Más pequeño en móvil */
+            .question-image { height: 200px; }
+            .question-actions { flex-direction: column-reverse; gap: 15px; }
+            .question-actions button { width: 100%; }
+            .scene-image { height: 350px; }
+            .extra-actions { display: flex; justify-content: center; align-items: center; gap: 15px; flex-wrap: wrap; }
+            #logout-btn { order: 1; } /* Mover logout a la izquierda si envuelve */
+        }
+    </style>
+
+    <!-- Scripts de librerías externas (al final del head para optimizar carga) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" xintegrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" xintegrity="sha512-BNaRQnYJYiPSqHHDb58B0yaPfCu+Wgds8Gp/gU33kqBtgNS4tSPHuGibyoeqMV/TJlSKda6FXzoEyYGjTe+vXA==" crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" xintegrity="sha512-qZvrmS2ekKPF2mSznTQsxqPgnpkI4DNTlrdUmTzrDgektczlKNRRhy5X5AAOnx5S09ydFYWWNSfcEqDTTHgtNA==" crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
+    <!-- SDK de Spotify -->
+    <script src="https://sdk.scdn.co/spotify-player.js"></script>
+</head>
+<body>
+
+<!-- Contenedor principal -->
+<div class="container">
+    <header class="hero">
+        <h1 class="title-cinema">MI PELÍCULA MENTAL</h1>
+        <p class="subtitle">Descubre tu proyecto de vida a través de preguntas poderosas</p>
+    </header>
+
+    <!-- PANTALLA 1: LOGIN SPOTIFY -->
+    <section id="musicSelectionScreen" class="screen active">
+        <div class="welcome-card">
+            <div class="cinema-icon">🎶</div>
+            <h2>Elige tu Banda Sonora</h2>
+            <p>Conéctate a Spotify para escuchar música mientras creas tu película.</p>
+            <a href="/login" class="btn-primary" style="text-decoration: none; padding: 15px 30px; display: inline-block; margin-top: 15px;">
+                Conectar con Spotify
+            </a>
+            <button class="btn-secondary" onclick="startQuestionnaireWithoutMusic()">
+                Continuar sin música
+            </button>
+        </div>
+    </section>
+
+    <!-- PANTALLA 2: CUESTIONARIO -->
+    <section id="questionnaireScreen" class="screen">
+        <div class="questionnaire-card">
+            <!-- Encabezado con imagen -->
+            <div class="question-header">
+                <img id="questionImage" src="https://placehold.co/700x250/0a0a0a/333?text=+" alt="Imagen relacionada con la pregunta" class="question-image">
+            </div>
+            <!-- Contenido de texto (Categoría y Título) -->
+            <div class="question-text-content">
+                <span class="question-category" id="questionCategory">CATEGORÍA</span>
+                <h2 class="question-title" id="questionTitle">Cargando pregunta...</h2>
+            </div>
+            <!-- Cuerpo con input y ayuda -->
+            <div class="question-body">
+                <textarea id="answerInput" rows="6" placeholder="Escribe tu respuesta aquí (mín. 10 caracteres)..." class="answer-textarea" aria-label="Respuesta a la pregunta"></textarea>
+                <div class="helper-text" id="helperText">Tómate tu tiempo. Sé honesto y específico.</div>
+            </div>
+            <!-- Acciones (botones) -->
+            <div class="question-actions">
+                <button class="btn-secondary" id="prevBtn" onclick="previousQuestion()" disabled aria-label="Pregunta anterior">← Anterior</button>
+                <button class="btn-primary" id="nextBtn" onclick="nextQuestion()" aria-label="Siguiente pregunta">Siguiente →</button>
+            </div>
+        </div>
+        <!-- Acciones Extra (Logout) -->
+        <div class="extra-actions">
+            <button class="btn-tertiary" id="logout-btn" onclick="window.location.href='/logout'" title="Cerrar sesión de Spotify">Cerrar Sesión Spotify 🚫</button>
+        </div>
+        <!-- Barra de Progreso -->
+        <div id="progressBar" class="progress-container hidden">
+            <div class="progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                <div class="progress-fill" id="progressFill" style="width: 0%;"></div>
+            </div>
+            <p class="progress-text"><span id="currentStep">0</span> de <span id="totalSteps">0</span></p>
+        </div>
+    </section>
+
+    <!-- PANTALLA 3: GENERACIÓN -->
+    <section id="generationScreen" class="screen">
+        <div class="generation-card">
+            <div class="cinema-icon animate-pulse">🎬</div>
+            <h2>Creando tus Escenas...</h2>
+            <p class="generation-text">Estamos generando imágenes personalizadas...</p>
+            <div class="loader-cinema" role="status" aria-label="Cargando"></div>
+            <p class="generation-status" id="generationStatus">Iniciando el proceso...</p>
+        </div>
+    </section>
+
+    <!-- PANTALLA 4: RESULTADOS -->
+    <section id="resultScreen" class="screen">
+        <div id="revealContainer" class="reveal-container hidden">
+            <button id="revealButton" class="btn-primary btn-reveal" onclick="revealCarousel()">🎬 Revelar mi Película</button>
+        </div>
+        <div id="resultCarousel" class="carousel-container hidden" role="region" aria-label="Carrusel de escenas generadas">
+            <div class="carousel-slides">
+                <!-- Diapositivas generadas por JS -->
+            </div>
+            <!-- Botones de carrusel (inicialmente ocultos si solo hay 1 slide) -->
+            <button class="carousel-btn prev hidden" onclick="prevSlide()" aria-label="Diapositiva anterior"><i class="fas fa-chevron-left" aria-hidden="true"></i></button>
+            <button class="carousel-btn next hidden" onclick="nextSlide()" aria-label="Siguiente diapositiva"><i class="fas fa-chevron-right" aria-hidden="true"></i></button>
+        </div>
+        <div id="finalLayout" class="final-layout hidden">
+            <div class="timeline-container" id="textTimelineContainer">
+                <h2>Tu Guión de Vida</h2>
+                 <!-- Items del timeline generados por JS -->
+            </div>
+            <div class="final-actions">
+                <div id="motivationalPhrase" class="motivational-phrase" aria-live="polite">
+                    <!-- Frase generada por IA -->
+                </div>
+                <div class="action-buttons">
+                    <button class="btn-secondary" onclick="downloadPDF()" aria-label="Descargar guión como PDF">Descargar PDF 📥</button>
+                    <button class="btn-primary" onclick="restartJourney()" aria-label="Reiniciar el cuestionario">Empezar de Nuevo</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer class="app-footer">
+        Desarrollado por Brandon Ac -- Jorman Estepa -- Juan Camilo
+    </footer>
+
+</div> <!-- Fin de .container -->
+
+<!-- ==========================================
+     REPRODUCTOR SPOTIFY (CON BUSCADOR INTEGRADO)
+     ========================================== -->
+<div id="spotify-web-player" class="spotify-player-minimized" role="complementary" aria-label="Reproductor de Spotify">
+    <!-- UI Principal (Controles e Info) -->
+    <div class="spotify-player-main-ui">
+        <div id="spotify-player-info">
+            <img id="spotify-album-art" src="https://placehold.co/50x50/1c1c1c/333?text=+" alt="Carátula del álbum actual">
+            <div>
+                <div id="spotify-track-name" aria-live="polite">Spotify</div>
+                <div id="spotify-artist-name" aria-live="polite">Web Player</div>
+            </div>
+        </div>
+        <div id="spotify-player-controls">
+            <button id="spotify-prev-btn" title="Anterior" aria-label="Canción anterior" disabled>⏮</button>
+            <button id="spotify-play-btn" title="Reproducir" aria-label="Reproducir">▶</button>
+            <button id="spotify-pause-btn" title="Pausar" aria-label="Pausar" style="display:none;">⏸</button>
+            <button id="spotify-next-btn" title="Siguiente" aria-label="Siguiente canción" disabled>⏭</button>
+        </div>
+        <!-- Botón para mostrar/ocultar el buscador -->
+        <button id="spotify-expand-btn" title="Buscar Música" aria-label="Expandir buscador de música" aria-expanded="false">🔎</button>
+    </div>
+
+    <!-- Sección de Búsqueda (Oculta por defecto) -->
+    <div id="spotify-search-expansion" class="hidden">
+        <label for="spotify-player-search-input" class="hidden">Buscar en Spotify</label>
+        <input type="search" id="spotify-player-search-input" placeholder="Buscar canción o artista..." aria-label="Campo de búsqueda de Spotify">
+        <div id="spotify-player-search-results" role="listbox" aria-label="Resultados de búsqueda de Spotify">
+            <!-- Resultados de búsqueda -->
+            <p>Escribe para buscar...</p>
+        </div>
+    </div>
+</div>
+
+<!-- Carga de nuestro script principal de JS (al final del body) -->
+<script src="app.js"></script>
+
+</body>
+</html>
+
