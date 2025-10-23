@@ -1,6 +1,6 @@
 Flask
-python-dotenv
 requests
 google-generativeai
 spotipy
-gunicorn
+python-dotenv  # <--- Asegúrate que esta línea exista
+gunicorn       # <--- Asegúrate que esta línea exista
